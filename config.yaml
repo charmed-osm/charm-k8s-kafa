@@ -1,0 +1,13 @@
+options:
+  image:
+    type: string
+    default: wurstmeister/kafka:2.12-2.2.1
+    description: The docker image to install.
+  port:
+    type: int
+    default: 9092
+    description: Kafka port
+  hostname:
+    type: string
+    default: kafka-k8s
+    description: Advertised hostname

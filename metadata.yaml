@@ -1,0 +1,14 @@
+name: kafka-k8s
+summary: A  kafka of an operator framework k8s charm
+description: |
+  Describe your charm here
+series:
+  - kubernetes
+min-juju-version: 2.7.0
+storage:
+  database:
+    type: filesystem
+    location: /var/lib/kafka
+deployment:
+  type: stateful
+  service: cluster
