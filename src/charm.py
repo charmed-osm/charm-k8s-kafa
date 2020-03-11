@@ -15,6 +15,8 @@ from ops.model import (
     ModelError,
 )
 
+from interface_zookeeper import ZookeeperClient, ZookeeperError
+
 
 class KafkaCharm(CharmBase):
     state = StoredState()
@@ -25,17 +27,16 @@ class KafkaCharm(CharmBase):
         # that's persistent across events
         self.state.set_default(is_started=False)
 
+        self.zookeeper = ZookeeperClient(self, 'zookeeper')
+
         if not self.state.is_started:
             self.state.is_started = True
-
-        # Register all of the events we want to observe
-        for event in (
-            # Charm events
-            self.on.config_changed,
-            self.on.start,
-            self.on.upgrade_charm,
-        ):
-            self.framework.observe(event, self)
+        
+        self.framework.observe(self.on.config_changed, self)
+        self.framework.observe(self.on.start, self)
+        self.framework.observe(self.on.upgrade_charm, self)
+        
+        self.framework.observe(self.zookeeper.on.zookeeper_available, self.on_config_changed)
 
     def _apply_spec(self, spec):
         # Only apply the spec if this unit is a leader.
@@ -84,12 +85,14 @@ class KafkaCharm(CharmBase):
                         "-c",
                         "exec kafka-server-start.sh /opt/kafka/config/server.properties \
                             --override broker.id=${{HOSTNAME##*-}} \
-                            --override listeners=PLAINTEXT://:{} \
-                            --override zookeeper.connect=zookeeper-k8s \
+                            --override listeners=PLAINTEXT://:{kafka_port} \
+                            --override zookeeper.connect={zookeeper_uri} \
                             --override log.dir=/var/lib/kafka \
                             --override auto.create.topics.enable=true \
-                            --override auto.leader.rebalance.enable=true".format(
-                            config["port"]
+                            --override auto.leader.rebalance.enable=true".format({
+                                "kafka_port": config["port"],
+                                "zookeeper_uri": config["zookeeper_uri"]
+                            }
                         ),
                     ],
                 }
@@ -100,6 +103,15 @@ class KafkaCharm(CharmBase):
 
     def on_config_changed(self, event):
         """Handle changes in configuration"""
+        try:
+            zookeeper = self.zookeeper.zookeeper()
+        except (ZookeeperError) as e:
+            self.model.unit.status = e.status
+            return
+
+        config = self.framework.model.config
+        config["zookeeper_uri"] = "{}:{}".format(zookeeper.host, zookeeper.port)
+
         unit = self.model.unit
 
         new_spec = self.make_pod_spec()

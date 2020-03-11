@@ -9,6 +9,9 @@ storage:
   database:
     type: filesystem
     location: /var/lib/kafka
+requires:
+  zookeeper:
+    interface: zookeeper
 deployment:
   type: stateful
   service: cluster
